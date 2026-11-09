@@ -11,7 +11,7 @@
 //   { type: 'hit', voice: n }      play voice n now
 //
 // Messages from the processor, about 30 times a second:
-//   { type: 'state', playing, counts: [7], hits: [7], meters: Float32Array(8) }
+//   { type: 'state', playing, bars, counts: [7], hits: [7], meters: Float32Array(8) }
 
 import { Engine, Params, VOICES } from './engine.js';
 
@@ -55,6 +55,7 @@ class NeurodrumProcessor extends AudioWorkletProcessor {
       this.port.postMessage({
         type: 'state',
         playing: e.playing,
+        bars: e.bars,
         counts: e.nodes.map((n) => n.count),
         hits: e.hits.slice(),
         meters: Float32Array.from(e.meters),

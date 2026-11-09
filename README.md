@@ -14,6 +14,7 @@ described in `../neurodrum/app/MECHANICS.md`.
 |---|---|---|
 | `engine.js` | `Engine` (neurons, clock, voices, FM and ring buses, mixer, delay) and `Params` | `engine.rs` |
 | `presets.js` | the 42 factory presets as stored 0..1 values and link matrices | `presets.rs` |
+| `randomise.js` | the randomise modes and mutate (new) | |
 | `ui.js` | the screen, drawn on a canvas | `ui.rs` |
 | `worklet.js` | AudioWorklet processor that runs `Engine` | the audio stream in `main.rs` |
 | `main.js`, `index.html` | the webpage | `main.rs` |
@@ -39,6 +40,32 @@ The controls are the same as the Rust app:
 - Drag knobs, faders, sliders and the tempo up or down. Hold **Shift** for fine moves.
   Double-click for the default.
 - The preset menu, ◀ ▶ and **Init** pick a factory preset.
+
+### Randomise and evolve (new in the JS version)
+
+The bar along the bottom makes new patches:
+
+| Button | What it changes |
+|---|---|
+| **All** (key **R**) | everything below, plus the tempo |
+| **Wiring** | the links between the neurons. Every neuron that plays is wired so the clock reaches it |
+| **Rhythm** | wiring, thresholds, clock rate and each voice's chance |
+| **Sounds** | every voice's pitch, envelopes, FM, timbre and FM/ring modulation between voices |
+| **Mix** | levels, pans, effect sends and the delay |
+| **Mutate** (key **M**) | nudges every setting a little, and sometimes one threshold or one link |
+| **Undo** (key **Z**) | steps back, up to 50 changes, including preset changes |
+
+**Complexity** sets how wild the results are. Low values give sparse wiring, short neuron
+cycles and plain sounds. High values give dense wiring, long and uneven cycles, more
+FM and ring modulation between voices, and voices that only play some of the time.
+
+**Evolve** mutates the patch at the start of every 1, 2, 4 or 8 bars while it plays, so the
+groove keeps slowly changing.
+
+Each voice also has a **Ch** (chance) slider in the mixer: how likely its neuron is to play
+the voice when it fires. The neuron still counts and passes its pulse on either way, so the
+rhythm keeps its shape and only that voice drops notes. The factory presets keep every chance
+at 100%, so they sound exactly like the original.
 
 ## Using the engine in code
 
@@ -78,7 +105,7 @@ seconds of every factory preset with the original `engine.rs`, then renders the 
 ## Tests
 
 ```sh
-npm test           # neuron rules, link rules, every preset renders cleanly
+npm test           # neuron rules, link rules, presets and random patches render cleanly
 npm run test:rust  # sample-by-sample comparison with the Rust engine (needs cargo)
 ```
 

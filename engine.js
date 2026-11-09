@@ -58,6 +58,9 @@ export function defaultVoiceParams() {
     pan: 0.0, // -1..1
     level: -3.0, // dB -60..0
     mute: false,
+    // Added in the JS version (not in the original): the chance, 0..1, that a firing neuron
+    // plays its voice. The neuron still fires and passes its pulse on either way.
+    chance: 1.0,
   };
 }
 
@@ -318,6 +321,8 @@ export class Engine {
     this.table = sineTable();
     this.voices = Array.from({ length: VOICES }, () => new Voice());
     this.nodes = Array.from({ length: VOICES }, () => ({ count: 0, fired: false }));
+    this.seed = 0x9e3779b9; // for the chance setting
+    this.bars = 0; // whole bars (4 beats) played since start
     this.beat_pos = 0.0;
     this.last_tick = -1;
     this.fm_bus = 0.0;
@@ -358,6 +363,7 @@ export class Engine {
     this.playing = true;
     this.beat_pos = 0.0;
     this.last_tick = -1;
+    this.bars = 0;
     for (const n of this.nodes) {
       n.count = 0;
       n.fired = false;
@@ -366,6 +372,16 @@ export class Engine {
 
   stop() {
     this.playing = false;
+  }
+
+  /** xorshift32, 0..1 */
+  random() {
+    let x = this.seed;
+    x ^= x << 13;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    this.seed = x >>> 0;
+    return this.seed / 4294967296;
   }
 
   pulse(i, depth) {
@@ -460,12 +476,14 @@ export class Engine {
             for (let i = 0; i < VOICES; i++) {
               if (this.nodes[i].fired) {
                 this.nodes[i].fired = false;
-                if (!p.voices[i].midi_only) this.thwack(i, 1.0);
+                const chance = p.voices[i].chance ?? 1;
+                if (!p.voices[i].midi_only && (chance >= 1 || this.random() < chance)) this.thwack(i, 1.0);
               }
             }
           }
         }
         this.beat_pos += beatsPerSample;
+        this.bars = Math.floor(this.beat_pos / 4);
       }
 
       dry[0] = dry[1] = 0;

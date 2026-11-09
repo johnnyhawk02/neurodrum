@@ -5,10 +5,13 @@
 
 import { Params, RATE_NAMES, SYNC_NAMES, VOICES, pitchHz } from './engine.js';
 import { FACTORY } from './presets.js';
+import { MODES, randomise } from './randomise.js';
 
 export const DESIGN_W = 1180;
-export const DESIGN_H = 520;
-const VERSION = 'v1.0.0';
+export const DESIGN_H = 562;
+const VERSION = 'v1.1.0';
+const EVOLVE_BARS = [0, 1, 2, 4, 8];
+const UNDO_LIMIT = 50;
 
 const BG = '#1c1d1f';
 const PANEL = '#2b2c2f';
@@ -277,6 +280,10 @@ export class App {
     this.meters = new Float32Array(VOICES + 1);
     this.cmds = [];
     this.lastSent = '';
+    this.complexity = 0.5;
+    this.evolve = 0; // mutate every this many bars while playing (0 = off)
+    this.lastBar = 0;
+    this.undo = [];
 
     for (let i = 0; i < FACTORY.length; i++) {
       const o = document.createElement('option');
@@ -296,6 +303,15 @@ export class App {
       } else if (e.key === ' ') {
         e.preventDefault();
         this.cmds.push({ type: this.playing ? 'stop' : 'play' });
+      } else if ((e.key === 'z' || e.key === 'Z') && !e.altKey) {
+        e.preventDefault();
+        this.undoLast();
+      } else if (e.ctrlKey || e.metaKey || e.altKey) {
+        // leave browser shortcuts alone
+      } else if (e.key === 'r' || e.key === 'R') {
+        this.randomise('all');
+      } else if (e.key === 'm' || e.key === 'M') {
+        this.randomise('mutate');
       }
     });
 
@@ -317,9 +333,29 @@ export class App {
       }
     }
     this.meters = state.meters;
+    // evolve: mutate the patch at the start of every N bars
+    if (state.bars !== undefined) {
+      if (this.evolve && state.playing && state.bars > this.lastBar && state.bars % this.evolve === 0) {
+        this.randomise('mutate');
+      }
+      this.lastBar = state.bars;
+    }
+  }
+
+  /** Apply a randomise mode, keeping the old patch for undo. */
+  randomise(mode) {
+    this.undo.push(this.params.clone());
+    if (this.undo.length > UNDO_LIMIT) this.undo.shift();
+    randomise(this.params, mode, this.complexity);
+  }
+
+  undoLast() {
+    const prev = this.undo.pop();
+    if (prev) this.params = prev;
   }
 
   loadPreset(i) {
+    if (this.params) this.undo.push(this.params.clone());
     this.preset = i;
     this.params = Params.fromFactory(FACTORY[i]);
   }
@@ -386,7 +422,7 @@ export class App {
     const m = 8;
     const header = rectSize(area.x0 + m, area.y0 + 4, W(area) - 2 * m, 44);
     const top = header.y1 + 4;
-    const bottom = area.y1 - m;
+    const bottom = 512; // the panels keep the original's size; the randomise bar goes below
     const lw = 372;
     const vw = 404;
     const left = rect(area.x0 + m, top, area.x0 + m + lw, bottom);
@@ -396,6 +432,7 @@ export class App {
     this.left(left);
     this.voicePanel(mid);
     this.displayPanel(right);
+    this.randomBar(rect(area.x0 + m, bottom + 6, area.x1 - m, area.y1 - m));
 
     this.input.end();
     this.push();
@@ -792,11 +829,14 @@ export class App {
       this.hslider(`fx${i}`, rectSize(sr.x0 + 16, y + 1, W(sr) - 18, 10), vp, 'fx_send', 0, 1, 0, false);
       small(g, { x: sr.x0, y: y + 16 }, 'LEFT_TOP', 'Pn', DIM);
       this.hslider(`pan${i}`, rectSize(sr.x0 + 16, y + 17, W(sr) - 18, 10), vp, 'pan', -1, 1, 0, true);
+      // chance that a firing neuron plays this voice (added in the JS version)
+      small(g, { x: sr.x0, y: y + 32 }, 'LEFT_TOP', 'Ch', DIM);
+      this.hslider(`ch${i}`, rectSize(sr.x0 + 16, y + 33, W(sr) - 18, 10), vp, 'chance', 0, 1, 1, false);
       const bw = (W(sr) - 4) / 2;
-      if (this.toggle(`m${i}`, rectSize(sr.x0, y + 33, bw, 18), 'M', vp.mute)) vp.mute = !vp.mute;
+      if (this.toggle(`m${i}`, rectSize(sr.x0, y + 49, bw, 18), 'M', vp.mute)) vp.mute = !vp.mute;
       const soloed = this.params.solo === i;
-      if (this.toggle(`s${i}`, rectSize(sr.x0 + bw + 4, y + 33, bw, 18), 'S', soloed)) this.params.solo = soloed ? -1 : i;
-      const fr = rect(cx(sr) - 11, y + 58, cx(sr) + 11, sr.y1 - 14);
+      if (this.toggle(`s${i}`, rectSize(sr.x0 + bw + 4, y + 49, bw, 18), 'S', soloed)) this.params.solo = soloed ? -1 : i;
+      const fr = rect(cx(sr) - 11, y + 74, cx(sr) + 11, sr.y1 - 14);
       this.fader(`lv${i}`, fr, vp, 'level', -3, this.meters[i]);
       small(g, { x: cx(sr), y: sr.y1 }, 'CENTER_BOTTOM', `${vp.level.toFixed(0)}dB`, TEXT);
     }
@@ -805,9 +845,42 @@ export class App {
     const sr = rectSize(x0 + 2, r.y0 + 4, w - 4, H(r) - 8);
     fillRect(g, sr, 3, '#1c1d20');
     text(g, { x: cx(sr), y: sr.y0 + 9 }, 'CENTER_CENTER', 'Master', prop(11.5), '#fff');
-    const fr = rect(cx(sr) - 11, sr.y0 + 80, cx(sr) + 11, sr.y1 - 14);
+    const fr = rect(cx(sr) - 11, sr.y0 + 96, cx(sr) + 11, sr.y1 - 14);
     this.fader('master', fr, this.params, 'master', 0, this.meters[VOICES]);
     small(g, { x: cx(sr), y: sr.y1 }, 'CENTER_BOTTOM', `${this.params.master.toFixed(0)}dB`, TEXT);
+  }
+
+  /** The randomise bar (added in the JS version). */
+  randomBar(r) {
+    const g = this.g;
+    panel(g, r);
+    const y = r.y0 + 6;
+    const h = H(r) - 12;
+    heading(g, { x: r.x0 + 10, y: cy(r) - 8 }, 'RANDOMISE');
+    let x = r.x0 + 104;
+    for (const m of MODES) {
+      if (this.toggle(`rnd-${m.id}`, rectSize(x, y, 62, h), m.label, false)) this.randomise(m.id);
+      x += 66;
+    }
+    x += 14;
+    small(g, { x, y: cy(r) }, 'LEFT_CENTER', 'complexity', DIM);
+    const cr = rectSize(x + 76, cy(r) - 6, 120, 12);
+    this.hslider('complexity', cr, this, 'complexity', 0, 1, 0.5, false);
+    small(g, { x: cr.x1 + 6, y: cy(r) }, 'LEFT_CENTER', `${Math.round(this.complexity * 100)}%`, TEXT);
+    x = cr.x1 + 52;
+    heading(g, { x, y: cy(r) - 8 }, 'EVOLVE');
+    x += 58;
+    for (const n of EVOLVE_BARS) {
+      const label = n === 0 ? 'off' : n === 1 ? '1 bar' : `${n}`;
+      if (this.toggle(`evolve${n}`, rectSize(x, y, n === 1 ? 44 : 32, h), label, this.evolve === n)) {
+        this.evolve = n;
+        this.lastBar = 0;
+      }
+      x += (n === 1 ? 44 : 32) + 4;
+    }
+    const ur = rectSize(r.x1 - 70, y, 62, h);
+    if (this.toggle('undo', ur, 'Undo', false)) this.undoLast();
+    if (!this.undo.length) fillRect(g, ur, 3, 'rgba(43,44,47,0.6)');
   }
 
   delay(r) {
