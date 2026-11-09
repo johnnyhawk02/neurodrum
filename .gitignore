@@ -1,0 +1,5 @@
+node_modules/
+test/rust-reference/target/
+test/rust-reference/out/
+*.wav
+.DS_Store

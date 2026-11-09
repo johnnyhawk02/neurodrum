@@ -1,0 +1,11 @@
+[package]
+name = "neurodrum-reference"
+version = "0.1.0"
+edition = "2021"
+
+# Renders every factory preset with the Rust engine (app/src/engine.rs), so the JS port
+# can be compared against it: cargo run --release -- <app/src folder> <out folder>
+[dependencies]
+
+[profile.release]
+opt-level = 3

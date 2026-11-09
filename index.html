@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1c1d1f">
+<title>Neurodrum</title>
+<meta name="description" content="Neural rhythm sequencer and FM percussion synth, running in the browser.">
+<style>
+  html, body { margin: 0; height: 100%; background: #1c1d1f; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; user-select: none; }
+  #preset {
+    position: absolute; box-sizing: border-box; margin: 0; padding: 0 6px;
+    background: transparent; color: #c8c9cb; border: none; outline: none;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; cursor: pointer;
+  }
+  #preset option { background: #2b2c2f; color: #c8c9cb; }
+</style>
+</head>
+<body>
+<canvas id="screen" aria-label="Neurodrum. Space plays and stops, keys 1 to 7 hit a voice."></canvas>
+<select id="preset" aria-label="Preset"></select>
+<script type="module" src="main.js"></script>
+</body>
+</html>
